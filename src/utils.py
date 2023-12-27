@@ -5,8 +5,12 @@ def runOSCommand(command):
     return subprocess.run(command.split(), shell=True, capture_output=True, text=True).stdout
 
 
+def adbPath():
+    return runOSCommand("where adb").strip()
+
+
 def hasAdb():
-    return "Could not find" not in runOSCommand("where adb")
+    return "Could not find" not in adbPath()
 
 
 def isDeviceAttached():
@@ -28,3 +32,18 @@ def findFile(name, startPath):
             result.append(os.path.join(root, name))
     return result
 
+
+def clearScreen():
+    os.system("cls")
+
+
+def showHeader():
+    print("""
+   _____          __            _________   ____________    _________       __                
+  /  _  \  __ ___/  |_  ____   /  _  \   \ /   /\______ \  /   _____/ _____/  |_ __ ________  
+ /  /_\  \|  |  \   __\/  _ \ /  /_\  \   Y   /  |    |  \ \_____  \_/ __ \   __\  |  \____ \ 
+/    |    \  |  /|  | (  <_> )    |    \     /   |    `   \/        \  ___/|  | |  |  /  |_> >
+\____|__  /____/ |__|  \____/\____|__  /\___/   /_______  /_______  /\___  >__| |____/|   __/ 
+        \/                           \/                 \/        \/     \/           |__|
+-----------------------------------------------------------------------------------------------
+""")
