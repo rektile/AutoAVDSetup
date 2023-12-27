@@ -38,6 +38,7 @@ def main():
     # Check if chosen option is available
     if whichToRoot > len(paths) or whichToRoot < 1:
         print("[!] That is not a valid option!")
+        exit()
 
     chosenOption = paths[whichToRoot - 1]
     extractedPath = extractPathForRootAVD(chosenOption)
