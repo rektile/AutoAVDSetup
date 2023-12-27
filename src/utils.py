@@ -1,9 +1,24 @@
-import subprocess, os
+import subprocess, os, re
 
 
 def runOSCommand(command):
-    return subprocess.run(command.split(), shell=True, capture_output=True, text=True).stdout
+    return subprocess.run(command, shell=True, capture_output=True, text=True).stdout
 
+
+def runADBCommand(command, asRoot=False):
+    if hasAdb() and isDeviceAttached():
+        if asRoot:
+            return runOSCommand(f"adb shell su -c {command}")
+        else:
+            return runOSCommand(f"adb shell {command}")
+
+    else:
+        print("[!] Unable to run adb command")
+        exit()
+
+
+def isDeviceRooted():
+    return "root" in runADBCommand("whoami", asRoot=True)
 
 def adbPath():
     return runOSCommand("where adb").strip()
@@ -32,6 +47,9 @@ def findFile(name, startPath):
             result.append(os.path.join(root, name))
     return result
 
+
+def extractPathForRootAVD(path):
+    return re.findall(r"system-images\\.*", path)[0]
 
 def clearScreen():
     os.system("cls")
