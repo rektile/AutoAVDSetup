@@ -1,6 +1,12 @@
 # AutoAVDSetup (WINDOWS)
 
-This tool automates the process of rooting and installing frida-server on Android Virtual Devices (AVD), simplifying the setup for developers and security enthusiasts.
+This tool automates the process of rooting, installing frida-server and installing proxy tool on Android Virtual Devices (AVD), simplifying the setup for developers and security enthusiasts.
+
+External tools that are used:
+- rootAVD (https://github.com/newbit1/rootAVD)
+- frida-server (https://github.com/frida/frida)
+- android-proxy-toggle (https://github.com/theappbusiness/android-proxy-toggle)
+
 
 ## prerequisites
 - Android studio installed
