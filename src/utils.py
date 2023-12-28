@@ -1,4 +1,5 @@
 import subprocess, os, re, requests, lzma
+from zipfile import ZipFile
 
 def runOSCommand(command):
     return subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip()
@@ -89,3 +90,16 @@ def doesAndroidVersionMatch(path):
 
 def isMagiskInstalled():
     return "com.topjohnwu.magisk" in runADBCommand("cmd package list packages | grep com.topjohnwu.magisk")
+
+
+def getLatestProxyToolRelease():
+    return requests.get("https://api.github.com/repos/theappbusiness/android-proxy-toggle/releases/latest").json()
+
+
+def extractZip(file, outputDir):
+    with ZipFile(file, "r") as z:
+        z.extractall(outputDir)
+
+
+def isProxyToolInstalled():
+    return "com.kinandcarta.create.proxytoggle" in runADBCommand("cmd package list packages | grep com.kinandcarta.create.proxytoggle")

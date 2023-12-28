@@ -127,6 +127,33 @@ def installFridaServer():
         print("[!] Failed to run frida server!")
 
 
+def installProxyTool():
+
+    proxyInfo = getLatestProxyToolRelease()
+    downloadUrl = proxyInfo["assets"][0]["browser_download_url"]
+
+    print(f"[*] Latest proxy tool version is: {proxyInfo['name']}")
+
+    print("[*] Downloading proxy tool")
+    downloadFileFromUrl(downloadUrl, "proxy-tool.zip", externalPath)
+
+    print("[*] Extracting APK from zip")
+    extractZip(f"{externalPath}\\proxy-tool.zip", f"{externalPath}\\proxy-tool")
+
+    print("[*] Installing proxy tool")
+    out = runOSCommand(f"adb install -t -r {externalPath}/proxy-tool/Proxy.Toggle.{proxyInfo['name']}/proxy-toggle.apk")
+    print(out)
+
+    print("[*] Setting tool permissions")
+    runOSCommand("adb shell pm grant com.kinandcarta.create.proxytoggle android.permission.WRITE_SECURE_SETTINGS")
+
+    if isProxyToolInstalled():
+        print("[*] Successfully installed proxy tool")
+    else:
+        print("[!] Failed to install proxy tool!")
+        exit()
+
+
 def main():
 
     showHeader()
@@ -158,6 +185,7 @@ def main():
     print("[*] Listing program options")
     print("[-] 1) Root your AVD")
     print("[-] 2) Install frida server on your AVD")
+    print("[-] 3) Install proxy tool on your AVD")
 
     try:
         option = int(input("[?] What do you want to do: ").strip())
@@ -166,6 +194,8 @@ def main():
             rootDevice()
         elif option == 2:
             installFridaServer()
+        elif option == 3:
+            installProxyTool()
         else:
             print("[!] That is not a valid option!")
             exit()
