@@ -27,10 +27,12 @@ def hasAdb():
     return "Could not find" not in adbPath()
 
 
+def listAttachedDevices():
+    return runOSCommand("adb devices").split("\n")[1:]
+
+
 def isDeviceAttached():
-    out = runOSCommand("adb devices")
-    linesAmount = len(out.split("\n"))
-    return linesAmount > 1
+    return len(listAttachedDevices()) > 0
 
 
 def getAVDLocations():
@@ -79,3 +81,11 @@ def downloadFileFromUrl(url, fileName, path):
 def extractXZ(fileIn, fileOut):
     with lzma.open(fileIn) as f, open(fileOut, "wb") as f2:
         f2.write(f.read())
+
+
+def doesAndroidVersionMatch(path):
+    return f"android-{runADBCommand('getprop ro.build.version.sdk')}" in path
+
+
+def isMagiskInstalled():
+    return "com.topjohnwu.magisk" in runADBCommand("cmd package list packages | grep com.topjohnwu.magisk")

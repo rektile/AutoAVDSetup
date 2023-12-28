@@ -16,7 +16,11 @@ def rootDevice():
 
     # Show ramdisk.img files to user
     for i, path in enumerate(paths):
-        print(f"[-] {i + 1}) {path}")
+        if doesAndroidVersionMatch(path):
+            print(f"[-] {i + 1}) {path} (Active)")
+        else:
+            print(f"[-] {i + 1}) {path}")
+
 
     try:
         print("[*] Make sure the AVD you want to root is running.")
@@ -41,6 +45,11 @@ def rootDevice():
     os.chdir("../")
 
     input("[*] Restart your AVD and press ENTER to check if AVD is rooted...")
+
+    if not isMagiskInstalled():
+        print("[!] Failed to root device!")
+
+    input("[*] Go to your apps and launch Magisk. Ensure that you complete the Magisk installation process entirely. Once the installation is finished, press ENTER to proceed.")
     print("[*] Make sure to accept root permissions on AVD")
     # Check if device is rooted
     if isDeviceRooted():
@@ -136,7 +145,14 @@ def main():
         print("[!] No AVD is active!")
         exit()
     else:
-        print("[*] Active AVD found")
+        if len(listAttachedDevices()) > 1:
+            print("[!] To many AVD active, make sure only 1 is active!")
+            exit()
+        elif "offline" in listAttachedDevices()[0]:
+            print("[!] Active AVD is offline!")
+            exit()
+        else:
+            print("[*] Active AVD found")
 
     # List options of this tool
     print("[*] Listing program options")
