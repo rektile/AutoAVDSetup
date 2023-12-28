@@ -1,4 +1,4 @@
-import subprocess, os, re, requests, lzma
+import subprocess, os, re, requests, lzma, psutil
 
 def runOSCommand(command):
     return subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip()
@@ -9,7 +9,7 @@ def runADBCommand(command, asRoot=False):
         if asRoot:
             return runOSCommand(f"adb shell su -c \"{command}\"")
         else:
-            return runOSCommand(f"adb shell {command}")
+            return runOSCommand(f"adb shell \"{command}\"")
 
     else:
         print("[!] Unable to run adb command")
@@ -55,7 +55,7 @@ def clearScreen():
 
 
 def showHeader():
-    print("""
+    print(r"""
    _____          __            _________   ____________    _________       __                
   /  _  \  __ ___/  |_  ____   /  _  \   \ /   /\______ \  /   _____/ _____/  |_ __ ________  
  /  /_\  \|  |  \   __\/  _ \ /  /_\  \   Y   /  |    |  \ \_____  \_/ __ \   __\  |  \____ \ 

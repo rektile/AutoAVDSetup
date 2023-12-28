@@ -58,6 +58,8 @@ def installFridaServer():
         print("[!] AVD is not rooted!")
         exit()
 
+    print(f"[*] Current architecture version: {runADBCommand('getprop ro.product.cpu.abi')}")
+
     print(f"[*] Latest frida version is: {fridaInfo['name']}")
 
     fridaInstallLinks = []
@@ -95,7 +97,7 @@ def installFridaServer():
     extractXZ(f"{externalPath}\\{chosenOptionName}", f"{externalPath}\\frida-server")
 
     # Push server to AVD
-    print("[*] Pushing server to AVD")
+    print("[*] Pushing server to /data/local/tmp/ on AVD")
     out = runOSCommand(f"adb push {externalPath}/frida-server /data/local/tmp/")
     print(out)
 
@@ -108,7 +110,7 @@ def installFridaServer():
     runADBCommand("nohup /data/local/tmp/frida-server > /dev/null 2>&1&", asRoot=True)
 
     print("[*] Checking if frida server is running")
-    runningProcesses = runADBCommand("ps")
+    runningProcesses = runADBCommand("ps | grep frida-server")
 
     if "frida-server" in runningProcesses:
         print("[*] Frida server is running")
