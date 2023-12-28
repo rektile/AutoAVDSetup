@@ -1,14 +1,13 @@
-import subprocess, os, re
-
+import subprocess, os, re, requests, lzma
 
 def runOSCommand(command):
-    return subprocess.run(command, shell=True, capture_output=True, text=True).stdout
+    return subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip()
 
 
 def runADBCommand(command, asRoot=False):
     if hasAdb() and isDeviceAttached():
         if asRoot:
-            return runOSCommand(f"adb shell su -c {command}")
+            return runOSCommand(f"adb shell su -c \"{command}\"")
         else:
             return runOSCommand(f"adb shell {command}")
 
@@ -21,7 +20,7 @@ def isDeviceRooted():
     return "root" in runADBCommand("whoami", asRoot=True)
 
 def adbPath():
-    return runOSCommand("where adb").strip()
+    return runOSCommand("where adb")
 
 
 def hasAdb():
@@ -29,7 +28,7 @@ def hasAdb():
 
 
 def isDeviceAttached():
-    out = runOSCommand("adb devices").strip()
+    out = runOSCommand("adb devices")
     linesAmount = len(out.split("\n"))
     return linesAmount > 1
 
@@ -65,3 +64,18 @@ def showHeader():
         \/                           \/                 \/        \/     \/           |__|
 -----------------------------------------------------------------------------------------------
 """)
+
+
+def getLatestFridaServerReleases():
+    return requests.get("https://api.github.com/repos/frida/frida/releases/latest").json()
+
+
+def downloadFileFromUrl(url, fileName, path):
+    r = requests.get(url)
+    with open(f"{path}\\{fileName}", "wb") as f:
+        f.write(r.content)
+
+
+def extractXZ(fileIn, fileOut):
+    with lzma.open(fileIn) as f, open(fileOut, "wb") as f2:
+        f2.write(f.read())
