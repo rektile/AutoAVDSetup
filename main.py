@@ -95,7 +95,7 @@ def installFridaServer():
     extractXZ(f"{externalPath}\\{chosenOptionName}", f"{externalPath}\\frida-server")
 
     # Push server to AVD
-    print("[*] Pushing server to ADV")
+    print("[*] Pushing server to AVD")
     out = runOSCommand(f"adb push {externalPath}/frida-server /data/local/tmp/")
     print(out)
 
@@ -131,10 +131,10 @@ def main():
     # Check AVD is running
     print("[*] Checking if AVD is active...")
     if not isDeviceAttached():
-        print("[!] No ADV is active!")
+        print("[!] No AVD is active!")
         exit()
     else:
-        print("[*] Active ADV found")
+        print("[*] Active AVD found")
 
     # List options of this tool
     print("[*] Listing program options")
