@@ -103,3 +103,15 @@ def extractZip(file, outputDir):
 
 def isProxyToolInstalled():
     return "com.kinandcarta.create.proxytoggle" in runADBCommand("cmd package list packages | grep com.kinandcarta.create.proxytoggle")
+
+
+def downloadBurpCert(burpProxy, path):
+    proxy = {"https": f"https://{burpProxy}", "http": f"http://{burpProxy}"}
+    try:
+        r = requests.get("http://burp/cert", proxies=proxy, verify=False, timeout=3)
+        with open(f"{path}\\cert.cer", "wb") as f:
+            f.write(r.content)
+    except requests.exceptions.ConnectionError as E:
+        print("[!] Unable to download cert, make sure you have entered the right proxy!")
+        exit()
+

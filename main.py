@@ -155,6 +155,27 @@ def installProxyTool():
         exit()
 
 
+def installBurpCert():
+
+    print("[*] Make sure burpsuite is running")
+    proxy = input("[?] Where is burpsuite listening (e.g. localhost:8080): ").strip()
+
+    if not proxy:
+        proxy = "localhost:8080"
+
+    print("[*] Downloading cert")
+    downloadBurpCert(proxy, externalPath)
+
+    print("[*] Moving cert to download folder on AVD")
+    out = runOSCommand(f"adb push {externalPath}/cert.cer /sdcard/Download")
+    print(out)
+
+    print("[*] Opening settings on AVD")
+    runOSCommand("adb shell am start -a android.settings.SETTINGS")
+
+    print("[*] Now install your CA certificate manually")
+
+
 def main():
 
     showHeader()
@@ -187,6 +208,7 @@ def main():
     print("[-] 1) Root your AVD")
     print("[-] 2) Install frida server on your AVD")
     print("[-] 3) Install proxy tool on your AVD")
+    print("[-] 4) Install burpsuite cert on your AVD")
 
     try:
         option = int(input("[?] What do you want to do: ").strip())
@@ -197,6 +219,8 @@ def main():
             installFridaServer()
         elif option == 3:
             installProxyTool()
+        elif option == 4:
+            installBurpCert()
         else:
             print("[!] That is not a valid option!")
             exit()
