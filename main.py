@@ -140,9 +140,10 @@ def installProxyTool():
     print("[*] Extracting APK from zip")
     extractZip(f"{externalPath}\\proxy-tool.zip", f"{externalPath}\\proxy-tool")
 
+    apkPath = findFile("proxy-toggle.apk", externalPath)[0]
+
     print("[*] Installing proxy tool")
-    out = runOSCommand(f"adb install -t -r {externalPath}/proxy-tool/Proxy.Toggle.{proxyInfo['name']}/proxy-toggle.apk")
-    print(out)
+    runOSCommand(f"adb install -t -r {apkPath}")
 
     print("[*] Setting tool permissions")
     runOSCommand("adb shell pm grant com.kinandcarta.create.proxytoggle android.permission.WRITE_SECURE_SETTINGS")
