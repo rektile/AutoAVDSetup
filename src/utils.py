@@ -6,7 +6,7 @@ def runOSCommand(command):
 
 
 def runADBCommand(command, asRoot=False):
-    if hasAdb() and isDeviceAttached():
+    if hasAdb() and len(listAttachedDevices()) == 1:
         if asRoot:
             return runOSCommand(f"adb shell su -c \"{command}\"")
         else:
