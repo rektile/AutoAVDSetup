@@ -1,4 +1,4 @@
-import subprocess, os, re, requests, lzma, psutil
+import subprocess, os, re, requests, lzma
 
 def runOSCommand(command):
     return subprocess.run(command, shell=True, capture_output=True, text=True).stdout.strip()
