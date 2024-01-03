@@ -6,6 +6,7 @@ External tools that are used:
 - rootAVD (https://github.com/newbit1/rootAVD)
 - frida-server (https://github.com/frida/frida)
 - android-proxy-toggle (https://github.com/theappbusiness/android-proxy-toggle)
+- MagiskTrustUserCerts (https://github.com/NVISOsecurity/MagiskTrustUserCerts)
 
 
 ## prerequisites

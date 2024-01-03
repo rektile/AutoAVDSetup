@@ -72,6 +72,8 @@ def showHeader():
 def getLatestFridaServerReleases():
     return requests.get("https://api.github.com/repos/frida/frida/releases/latest").json()
 
+def getLatestMagiskTrustUserCertsRelease():
+    return requests.get("https://api.github.com/repos/NVISOsecurity/MagiskTrustUserCerts/releases/latest").json()
 
 def downloadFileFromUrl(url, fileName, path):
     r = requests.get(url)
@@ -114,4 +116,3 @@ def downloadBurpCert(burpProxy, path):
     except requests.exceptions.ConnectionError as E:
         print("[!] Unable to download cert, make sure you have entered the right proxy!")
         exit()
-

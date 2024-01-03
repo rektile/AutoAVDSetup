@@ -155,6 +155,35 @@ def installProxyTool():
         exit()
 
 
+def installTrustUserCertsModule():
+
+    if not isDeviceRooted():
+        print("[!] AVD is not rooted!")
+        exit()
+
+    if not isMagiskInstalled():
+        print("[!] Magisk is not installed!")
+        exit()
+
+    moduleInfo = getLatestMagiskTrustUserCertsRelease()
+    downloadUrl = moduleInfo["assets"][0]["browser_download_url"]
+
+    print(f"[*] Latest MagiskTrustUserCerts module version is: {moduleInfo['name']}")
+
+    print("[*] Downloading module")
+    downloadFileFromUrl(downloadUrl, "MagiskTrustUserCerts.zip", externalPath)
+
+    print("[*] Pushing module to /data/local/tmp/ on AVD")
+    out = runOSCommand(f"adb push {externalPath}/MagiskTrustUserCerts.zip /data/local/tmp/")
+    print(out)
+
+    print("[*] Installing module with Magisk")
+    out = runADBCommand(f"magisk --install-module /data/local/tmp/MagiskTrustUserCerts.zip", asRoot=True)
+    print(out)
+
+    print("[*] Rebooting AVD")
+    runOSCommand("adb reboot")
+
 def installBurpCert():
 
     print("[*] Make sure burpsuite is running")
@@ -209,6 +238,7 @@ def main():
     print("[-] 2) Install frida server on your AVD")
     print("[-] 3) Install proxy tool on your AVD")
     print("[-] 4) Install burpsuite cert on your AVD")
+    print("[-] 5) Install MagiskTrustUserCerts module")
 
     try:
         option = int(input("[?] What do you want to do: ").strip())
@@ -221,6 +251,8 @@ def main():
             installProxyTool()
         elif option == 4:
             installBurpCert()
+        elif option == 5:
+            installTrustUserCertsModule()
         else:
             print("[!] That is not a valid option!")
             exit()
