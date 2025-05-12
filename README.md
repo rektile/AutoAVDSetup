@@ -25,3 +25,7 @@ Run the tool
 ```
 python main.py
 ```
+
+## TODO
+
+Support FAKEBOOTIMG argument for magisk version >= 26.x
