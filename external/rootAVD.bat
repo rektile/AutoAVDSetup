@@ -33,8 +33,8 @@ IF %DEBUG% (
 	echo ListAllAVDs=%ListAllAVDs%
 	echo InstallApps=%InstallApps%
 	echo NOPARAMSATALL=%NOPARAMSATALL%
+	echo COPYASADMIN=%COPYASADMIN%
 )
-
 
 IF NOT %InstallApps% (
 	REM If there is no file to work with, abort the script
@@ -57,6 +57,8 @@ for /F "delims=" %%i in ("%AVDPATHWITHRDFFILE%") do (
 	set AVDPATH=%%~dpi
 	set RDFFILE=%%~nxi
 )
+
+call :testWritePerm %RDFFILE%
 
 REM If we can CD into the ramdisk.img, it is not a file!
 cd %AVDPATHWITHRDFFILE% >nul 2>&1
@@ -136,12 +138,20 @@ IF "%ERRORLEVEL%"=="0" (
 	REM In Debug-Mode we can skip parts of the script
 	IF NOT %DEBUG% (
 		IF %RAMDISKIMG% (
-			call :pullfromAVD ramdiskpatched4AVD.img "%AVDPATHWITHRDFFILE%"
-			call :pullfromAVD Magisk.apk %ROOTAVD%\Apps\
+
+			IF %COPYASADMIN% (
+				call :pullfromAVD ramdiskpatched4AVD.img
+				powershell.exe -Command "Start-Process -Wait cmd '/c copy """"%ROOTAVD%\ramdiskpatched4AVD.img"""" """"%AVDPATHWITHRDFFILE%""""' -Verb RunAs"
+				del /Q ramdiskpatched4AVD.img
+			) ELSE (
+				call :pullfromAVD ramdiskpatched4AVD.img "%AVDPATHWITHRDFFILE%"
+			)
+
+			call :pullfromAVD Magisk.apk "%ROOTAVD%" Apps
 			call :pullfromAVD Magisk.zip
 
 			IF %InstallPrebuiltKernelModules% (
-				call :pullfromAVD %BZFILE%
+				call :pullfromAVD "%BZFILE%"
 				call :InstallKernelModules
 			)
 
@@ -202,7 +212,13 @@ exit /B 0
 	IF EXIST "%BZFILE%" (
 		call :create_backup %KRFILE%
 		echo [*] Copy %BZFILE% ^(Kernel^) into kernel-ranchu
-		copy "%BZFILE%" "%AVDPATH%%KRFILE%" >Nul
+
+		IF %COPYASADMIN% (
+			echo [^^!] with elevated write permissions
+			powershell.exe -Command "Start-Process -Wait cmd '/c copy """"%BZFILE%"""" """"%AVDPATH%%KRFILE%""""' -Verb RunAs"
+		) ELSE (
+			copy "%BZFILE%" "%AVDPATH%%KRFILE%" >Nul 2>&1
+		)
 
 		IF "%ERRORLEVEL%"=="0" (
 			del "%BZFILE%" "%INITRAMFS%"
@@ -215,6 +231,7 @@ exit /B 0
 	SetLocal EnableDelayedExpansion
 	set SRC=%1
 	set DST=%2
+	set DST2=%3
 	set ADBPULLECHO=
 
 	setlocal enableDelayedExpansion
@@ -229,7 +246,16 @@ exit /B 0
 		set "DST=%%~nxi"
 	)
 
-	adb pull %ADBBASEDIR%/%SRC% %2 > tmpFile 2>&1
+	IF NOT "%DST2%"=="" (
+		adb pull %ADBBASEDIR%/%SRC% %DST2% > tmpFile 2>&1
+		set "DST=%DST2%"
+	)ELSE (
+		IF "%DST%"=="" (
+			adb pull %ADBBASEDIR%/%SRC% > tmpFile 2>&1
+		)
+		adb pull %ADBBASEDIR%/%SRC% %2 > tmpFile 2>&1
+	)
+
 	set /P ADBPULLECHO=<tmpFile
 	del tmpFile
 
@@ -272,16 +298,42 @@ exit /B 0
 	ENDLOCAL
 exit /B 0
 
+:testWritePerm
+	set FILE=%1
+	set TEMPFILE=%FILE%.temp
+
+	echo [*] Testing for write permissions
+	echo [-] creating TEMPFILE File
+	copy "%AVDPATH%%FILE%" "%AVDPATH%%TEMPFILE%" >Nul 2>&1
+	IF NOT "%ERRORLEVEL%"=="0" (
+		set COPYASADMIN=%true%
+		echo [^!] elevated write permissions are needed to access ^$ANDROID_HOME
+	)
+
+	IF NOT %COPYASADMIN% (
+		echo [-] deleating TEMPFILE File
+		echo [^^!] NO elevated write permissions are needed to access ^$ANDROID_HOME
+		del /Q "%AVDPATH%%TEMPFILE%"
+	)
+exit /B 0
+
+
 :create_backup
 	SetLocal EnableDelayedExpansion
 	set FILE=%1
 	set BACKUPFILE=%FILE%.backup
 
 	REM If no backup file exist, create one
-
 	IF NOT EXIST "%AVDPATH%%BACKUPFILE%" (
-    	echo [*] create Backup File
-		copy "%AVDPATH%%FILE%" "%AVDPATH%%BACKUPFILE%" >Nul
+    	echo [*] creating Backup File
+
+		IF %COPYASADMIN% (
+			echo [^^!] with elevated write permissions
+			powershell.exe -Command "Start-Process -Wait cmd '/c copy """"%AVDPATH%%FILE%"""" """"%AVDPATH%%BACKUPFILE%""""' -Verb RunAs"
+		) ELSE (
+			copy "%AVDPATH%%FILE%" "%AVDPATH%%BACKUPFILE%" >Nul 2>&1
+		)
+
 		IF EXIST "%AVDPATH%%BACKUPFILE%" (
 			echo [-] Backup File was created
 		)
@@ -368,7 +420,13 @@ exit /B 0
 :restore_backups
 	for /f "delims=" %%i in ('dir "%AVDPATH%*.backup" /s /b /a-d') do (
 		echo [^!] Restoring %%~ni%%~xi to %%~ni
-		copy "%%i" "%%~di%%~pi%%~ni" >nul 2>&1
+
+		IF %COPYASADMIN% (
+			echo [^!] with elevated write permissions
+			powershell.exe -Command "Start-Process -Wait cmd '/c copy """"%%i"""" """"%%~di%%~pi%%~ni""""' -Verb RunAs"
+		) ELSE (
+			copy "%%i" "%%~di%%~pi%%~ni" >nul 2>&1
+		)
 	)
 	echo [*] Backups still remain in place
 REM call :_Exit 2> nul
@@ -386,6 +444,7 @@ exit /B 0
 	set ListAllAVDs=%false%
 	set InstallApps=%false%
 	set NOPARAMSATALL=%false%
+	set COPYASADMIN=%false%
 
 	REM While debugging and developing you can turn this flag on
 	echo.%params%| FIND /I "DEBUG">Nul && (

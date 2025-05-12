@@ -67,6 +67,7 @@ copyARCHfiles() {
 	BINDIR=$BASEDIR/lib/$ABI
 	ASSETSDIR=$BASEDIR/assets
 	STUBAPK=false
+	INITLD=false
 
 	if [ -e $BINDIR/libstub.so ]; then
 		ABI=$ARCH32
@@ -87,6 +88,11 @@ copyARCHfiles() {
  		echo "[-] copy 'stub.apk' from $ASSETSDIR to $BASEDIR"
  		cp $ASSETSDIR/stub.apk $BASEDIR 2>/dev/null
  		STUBAPK=true
+ 	fi
+
+	if [ -e $BASEDIR/init-ld ]; then
+ 		echo "[*] init LD_PRELOAD is present"
+ 		INITLD=true
  	fi
 
 	chmod -R 755 $BASEDIR
@@ -933,13 +939,16 @@ DownLoadFile() {
 }
 
 GetUSBHPmod() {
-	USBHPZSDDL="/sdcard/Download/usbhostpermissons.zip"
-	USBHPZ="https://github.com/newbit1/usbhostpermissons/releases/download/v1.0/usbhostpermissons.zip"
-	if [ ! -e $USBHPZSDDL ]; then
-		echo "[*] Downloading USB HOST Permissions Module Zip"
-		$BB wget -q -O $USBHPZSDDL --no-check-certificate $USBHPZ
-	else
+	USBHPZSDDL="/sdcard/Download"
+	USBHPZ="https://gitlab.com/newbit/usbhostpermissions/-/releases/permalink/latest/downloads/usbhostpermissions"
+
+	if ls $USBHPZSDDL/usbhostpermissions*.zip 1> /dev/null 2>&1; then
 		echo "[*] USB HOST Permissions Module Zip is already present"
+	else
+		echo "[*] Downloading USB HOST Permissions Module Zip"
+		$BB wget --no-check-certificate $USBHPZ -S -o response.txt
+		USBHPZ=$(cat response.txt | $BB grep -Eo 'https://[^"]+\.(zip)')
+		$BB wget -q -P $USBHPZSDDL --no-check-certificate $USBHPZ
 	fi
 }
 
@@ -1024,9 +1033,9 @@ CheckAvailableMagisks() {
 	local TJWCOMMITSURL="topjohnwu/magisk-files/commits/master/"
 	local TJWBLOBURL="topjohnwu/magisk-files/blob/"
 
-	local VVB2060REPOURL="vvb2060/magisk_files/"
-	local VVB2060COMMITSURL="vvb2060/magisk_files/commits/alpha/"
-	local VVB2060BLOBURL="vvb2060/magisk_files/blob/"
+	#local VVB2060REPOURL="vvb2060/magisk_files/"
+	#local VVB2060COMMITSURL="vvb2060/magisk_files/commits/alpha/"
+	#local VVB2060BLOBURL="vvb2060/magisk_files/blob/"
 	local DLL_cnt=0
 
 	if [ -z $MAGISKVERCHOOSEN ]; then
@@ -1053,7 +1062,7 @@ CheckAvailableMagisks() {
 
 			FetchMagiskDLData $RAWGITHUB$TJWREPOURL"master/" "stable"
 			FetchMagiskDLData $RAWGITHUB$TJWREPOURL"master/" "canary"
-			FetchMagiskDLData $RAWGITHUB$VVB2060REPOURL"alpha/" "alpha"
+			#FetchMagiskDLData $RAWGITHUB$VVB2060REPOURL"alpha/" "alpha"
 
 			while :
 			do
@@ -1085,7 +1094,7 @@ CheckAvailableMagisks() {
 							rm *.txt > /dev/null 2>&1
 							FetchMagiskRLCommits $GITHUB $TJWCOMMITSURL $TJWBLOBURL "stable" $TJWREPOURL
 							FetchMagiskRLCommits $GITHUB $TJWCOMMITSURL $TJWBLOBURL "canary" $TJWREPOURL
-							FetchMagiskRLCommits $GITHUB $VVB2060COMMITSURL $VVB2060BLOBURL "alpha" $VVB2060REPOURL
+							#FetchMagiskRLCommits $GITHUB $VVB2060COMMITSURL $VVB2060BLOBURL "alpha" $VVB2060REPOURL
 						else
 							echo "invalid option $choice"
 						fi
@@ -1125,7 +1134,7 @@ CheckAvailableMagisks() {
 			PrepBusyBoxAndMagisk
 		fi
 
-		# Call rootAVD with GetUSBHPmodZ to download the usbhostpermissons module
+		# Call rootAVD with GetUSBHPmodZ to download the usbhostpermissions module
 		$GetUSBHPmodZ && $AVDIsOnline && GetUSBHPmod
 	fi
 	export MAGISK_VER
@@ -1178,6 +1187,16 @@ InstallMagiskTemporarily() {
 	fi
 }
 
+AllowPermissionsTo3rdPartyAPKs(){
+	echo "[!] allowing MANAGE_EXTERNAL_STORAGE permissions to..."
+	local PKG_NAMES=$(pm list packages -3 | cut -f 2 -d ":") > /dev/null 2>&1
+	local PKG_NAME=""
+	for PKG_NAME in $PKG_NAMES; do
+		echo "[-] $PKG_NAME"
+		appops set $PKG_NAME MANAGE_EXTERNAL_STORAGE allow
+	done
+}
+
 RemoveTemporarilyMagisk() {
 
 	if ! $magiskispreinstalled; then
@@ -1222,7 +1241,7 @@ FindWorkingBusyBox() {
 	for file in $(ls $BASEDIR/lib/*/*busybox*); do
 		chmod +x "$file"
 		bbversion=$($file | $file head -n 1)>/dev/null 2>&1
-		if [[ $bbversion == *"BusyBox"*"Magisk"*"multi-call"* ]]; then
+		if [[ $bbversion == *"BusyBox"* ]]; then
 			TestingBusyBoxVersion "$file"
 			RESULT="$?"
 			if [[ "$RESULT" == "0" ]]; then
@@ -1678,26 +1697,43 @@ patching_ramdisk(){
 
 	echo "[-] Patching ramdisk"
 
+	# Compress to save precious ramdisk space
+	if ! $INITLD ; then
+		if $IS32BITONLY || ! $IS64BITONLY ; then
+			PREINITDEVICE=$($BASEDIR/magisk32 --preinit-device)
+			$BASEDIR/magiskboot compress=xz magisk32 magisk32.xz
+		fi
+
+		if $IS64BITONLY || ! $IS32BITONLY ; then
+			PREINITDEVICE=$($BASEDIR/magisk64 --preinit-device)
+			$BASEDIR/magiskboot compress=xz magisk64 magisk64.xz
+		fi
+	else
+		PREINITDEVICE=$($BASEDIR/magisk --preinit-device)
+		$BASEDIR/magiskboot compress=xz magisk magisk.xz
+		$BASEDIR/magiskboot compress=xz init-ld init-ld.xz
+	fi
+
+	$INITLD && SKIPLD="" || SKIPLD="#"
+
 	echo "KEEPVERITY=$KEEPVERITY" > config
 	echo "KEEPFORCEENCRYPT=$KEEPFORCEENCRYPT" >> config
 	echo "RECOVERYMODE=$RECOVERYMODE" >> config
+
+	if [ -n "$PREINITDEVICE" ]; then
+		echo "[*] Pre-init storage partition: $PREINITDEVICE"
+		echo "PREINITDEVICE=$PREINITDEVICE" >> config
+	fi
 
 	# actually here is the SHA of the bootimage generated
 	# we only have one file, so it could make sense
 	[ ! -z $SHA1 ] && echo "SHA1=$SHA1" >> config
 
-	# Compress to save precious ramdisk space
-
-	if $IS32BITONLY || ! $IS64BITONLY ; then
-		$BASEDIR/magiskboot compress=xz magisk32 magisk32.xz
-	fi
-
-	if $IS64BITONLY || ! $IS32BITONLY ; then
-		$BASEDIR/magiskboot compress=xz magisk64 magisk64.xz
-	fi
-
 	$IS64BITONLY && SKIP32="#" || SKIP32=""
 	$IS64BIT && SKIP64="" || SKIP64="#"
+
+	$INITLD && SKIP32="#"
+	$INITLD && SKIP64="#"
 
 	if $STUBAPK; then
 		echo "[!] stub.apk is present, compress and add it to ramdisk"
@@ -1720,13 +1756,14 @@ patching_ramdisk(){
 	"add 0750 init magiskinit" \
 	"$SKIP32 add 0644 overlay.d/sbin/magisk32.xz magisk32.xz" \
 	"$SKIP64 add 0644 overlay.d/sbin/magisk64.xz magisk64.xz" \
+	"$SKIPLD add 0644 overlay.d/sbin/magisk.xz magisk.xz" \
 	"$SKIPSTUB add 0644 overlay.d/sbin/stub.xz stub.xz" \
+	"$SKIPLD add 0644 overlay.d/sbin/init-ld.xz init-ld.xz" \
 	"patch" \
 	"backup ramdisk.cpio.orig" \
 	"mkdir 000 .backup" \
 	"add 000 .backup/.magisk config"
 }
-
 
 rename_copy_magisk() {
 	if ( "$MAGISKVERCHOOSEN" ); then
@@ -2541,6 +2578,7 @@ InstallMagiskToAVD() {
 	if $INEMULATOR; then
 		detect_ramdisk_compression_method
 		decompress_ramdisk
+		AllowPermissionsTo3rdPartyAPKs
 		if $FAKEBOOTIMG; then
 			process_fake_boot_img
 		fi
@@ -2754,7 +2792,7 @@ echo "	"
 echo "${bold}Notes: rootAVD will${normal}"
 echo "- always create ${bold}.backup${normal} files of ${bold}ramdisk.img${normal} and ${bold}kernel-ranchu${normal}"
 echo "- ${bold}replace${normal} both when done patching"
-echo "- show a ${bold}Menu${normal}, to choose the Magisk Version ${bold}(Stable || Canary || Alpha)${normal}, if the AVD is ${bold}online${normal}"
+echo "- show a ${bold}Menu${normal}, to choose the Magisk Version ${bold}(Stable || Canary, if the AVD is ${bold}online${normal}"
 echo "- make the ${bold}choosen${normal} Magisk Version to its ${bold}local${normal}"
 echo "- install all APKs placed in the Apps folder"
 FindSystemImages
@@ -2798,7 +2836,7 @@ ProcessArguments() {
 		PATCHFSTAB=true
 	fi
 
-	# Call rootAVD with GetUSBHPmodZ to download the usbhostpermissons module
+	# Call rootAVD with GetUSBHPmodZ to download the usbhostpermissions module
 	if [[ "$@" == *"GetUSBHPmodZ"* ]]; then
 		GetUSBHPmodZ=true
 	fi
