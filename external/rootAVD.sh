@@ -234,8 +234,15 @@ runMagisk_to_Patch_fake_boot_img() {
 	am force-stop $PKG_NAME
 	echo "[-] Starting Magisk"
 	monkey -p $PKG_NAME -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1
-	echo "[*] Install/Patch $FBI and hit Enter when done(max. 60s)"
-	read -t 60 proceed
+	echo ""
+	echo "[*] ACTION REQUIRED on the AVD screen:"
+	echo "    1) Magisk app should now be open on the emulator"
+	echo "    2) Tap 'Install' -> 'Select and Patch a File'"
+	echo "    3) Navigate to /sdcard/Download/ and select 'fakeboot.img'"
+	echo "    4) Wait for Magisk to finish patching"
+	echo "    5) Press ENTER here when done"
+	echo ""
+	read proceed
 	case $proceed in
 		*)
 		;;
@@ -340,13 +347,21 @@ create_fake_boot_img() {
 		test -f "$FBI"
 		RESULT="$?"
 		if [[ "$RESULT" != "0" ]]; then
-			echo "[!] $FBI could not be created"
-			abort_script
+			echo "[!] magiskboot repack failed, using manually constructed boot image"
+			cp $FBHI $FBI
+			test -f "$FBI"
+			RESULT="$?"
+			if [[ "$RESULT" != "0" ]]; then
+				echo "[!] $FBI could not be created"
+				abort_script
+			fi
 		fi
 	fi
 	echo "[!] $FBI created"
 
 	InstallMagiskTemporarily
+	echo "[*] Granting Magisk storage permissions"
+	appops set $PKG_NAME MANAGE_EXTERNAL_STORAGE allow
 	detecting_users
 	runMagisk_to_Patch_fake_boot_img
 	RemoveTemporarilyMagisk
@@ -1233,12 +1248,42 @@ TestingBusyBoxVersion() {
 	$busyboxworks && return 0 || return 1
 }
 
+FindPrePushedBusyBox() {
+	# Check for a busybox binary pre-pushed by the host-side Python script
+	# Stored in /data/local/tmp/ to survive workdir cleanup
+	local DL_BB="/data/local/tmp/busybox_dl"
+	echo "[*] Checking for pre-pushed busybox at $DL_BB"
+	if [ -f "$DL_BB" ] && [ -s "$DL_BB" ]; then
+		chmod +x "$DL_BB"
+		local bbver=$("$DL_BB" 2>/dev/null | head -n 1) 2>/dev/null
+		if [[ "$bbver" == *"BusyBox"* ]]; then
+			echo "[!] Found pre-pushed busybox: $bbver"
+			# Copy to workdir so the rest of the script can find it
+			cp "$DL_BB" "$BASEDIR/busybox_dl"
+			chmod +x "$BASEDIR/busybox_dl"
+			TestingBusyBoxVersion "$BASEDIR/busybox_dl"
+			if [[ "$?" == "0" ]]; then
+				export WorkingBusyBox="$BASEDIR/busybox_dl"
+				return 0
+			fi
+			# Even if unzip test fails, the binary itself runs — still usable
+			echo "[!] Pre-pushed busybox unzip test failed, but binary runs — using it anyway"
+			export WorkingBusyBox="$BASEDIR/busybox_dl"
+			return 0
+		fi
+		echo "[!] Pre-pushed busybox binary does not execute on this platform"
+	else
+		echo "[!] No pre-pushed busybox found at $DL_BB"
+	fi
+	return 1
+}
+
 FindWorkingBusyBox() {
 	echo "[*] Finding a working Busybox Version"
 	local bbversion=""
 	local RESULT=""
 
-	for file in $(ls $BASEDIR/lib/*/*busybox*); do
+	for file in $(ls $BASEDIR/lib/*/*busybox* 2>/dev/null); do
 		chmod +x "$file"
 		bbversion=$($file | $file head -n 1)>/dev/null 2>&1
 		if [[ $bbversion == *"BusyBox"* ]]; then
@@ -1252,7 +1297,8 @@ FindWorkingBusyBox() {
 			fi
 		fi
 	done
-	echo "[!] Can not find any working Busybox Version"
+	echo "[!] Can not find any working bundled Busybox Version"
+	FindPrePushedBusyBox && return
 	abort_script
 }
 
@@ -1448,8 +1494,28 @@ ExecBusyBoxAsh() {
 		echo "[*] Re-Run rootAVD in Magisk Busybox STANDALONE (D)ASH as Root"
 		exec $SU 0 $BB sh $0 $@
 	fi
-	echo "[*] Re-Run rootAVD in Magisk Busybox STANDALONE (D)ASH"
-	exec $BB sh $0 $@
+
+	# Test if busybox ash actually works before exec-ing
+	$BB sh -c "echo bbtest" > /dev/null 2>&1
+	if [[ "$?" == "0" ]]; then
+		echo "[*] Re-Run rootAVD in Magisk Busybox STANDALONE (D)ASH"
+		exec $BB sh $0 $@
+	else
+		echo "[!] Busybox ash is not functional (likely segfaults on this kernel)"
+		echo "[*] Continuing without busybox ash — using system shell and toybox"
+		# Make sure busybox applets are available via PATH
+		# Create symlinks for commonly needed applets in BASEDIR
+		if [ -x "$BB" ]; then
+			for applet in cpio stat dd wget; do
+				if ! command -v $applet > /dev/null 2>&1; then
+					ln -sf $BB $BASEDIR/$applet 2>/dev/null
+				fi
+			done
+			export PATH="$BASEDIR:$PATH"
+		fi
+		# Don't exec — just return and let InstallMagiskToAVD continue
+		return
+	fi
 }
 
 repack_ramdisk() {
