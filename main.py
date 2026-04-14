@@ -132,17 +132,82 @@ def rootDevice():
         sys.exit(1)
 
 
+def isFridaInstalled():
+    """Check if frida-server binary exists on the device."""
+    result = runADBCommand("ls /data/local/tmp/frida-server", asRoot=True)
+    return "No such file" not in result and "not found" not in result and result.strip() != ""
+
+
+def isFridaRunning():
+    """Check if frida-server process is running."""
+    result = runADBCommand("ps -A | grep frida-server")
+    return "frida-server" in result
+
+
+def startFridaServer():
+    print("[*] Starting frida server...")
+    runADBCommand("nohup /data/local/tmp/frida-server > /dev/null 2>&1&", asRoot=True)
+    if isFridaRunning():
+        print("[*] Frida server is running.")
+    else:
+        print("[!] Failed to start frida server!")
+
+
+def stopFridaServer():
+    print("[*] Stopping frida server...")
+    runADBCommand("pkill -f frida-server", asRoot=True)
+    if not isFridaRunning():
+        print("[*] Frida server stopped.")
+    else:
+        print("[!] Failed to stop frida server!")
+
+
 def installFridaServer():
     if not isDeviceRooted():
         print("[!] AVD is not rooted!")
         sys.exit(1)
 
+    installed = isFridaInstalled()
+    running = isFridaRunning() if installed else False
+
+    if installed:
+        status = "running" if running else "stopped"
+        print(f"[*] Frida server is already installed ({status}).")
+        print()
+        print("  1) Reinstall Frida Server")
+        if running:
+            print("  2) Stop Frida Server")
+        else:
+            print("  2) Start Frida Server")
+        print("  0) Back")
+        print()
+
+        try:
+            choice = int(input("[?] Select an option: ").strip())
+        except ValueError:
+            print("[!] Invalid option!")
+            return
+
+        if choice == 0:
+            return
+        elif choice == 2:
+            if running:
+                stopFridaServer()
+            else:
+                startFridaServer()
+            return
+        elif choice != 1:
+            print("[!] Invalid option!")
+            return
+
+    # Install flow
     fridaInfo = getLatestFridaServerReleases()
     if "name" not in fridaInfo:
         print(f"[!] Failed to fetch Frida releases: {fridaInfo.get('message', 'Unknown error')}")
         sys.exit(1)
 
-    print(f"[*] Current architecture: {runADBCommand('getprop ro.product.cpu.abi')}")
+    device_abi = runADBCommand('getprop ro.product.cpu.abi').strip()
+    print(f"[*] Current architecture: {device_abi}")
     print(f"[*] Latest frida version: {fridaInfo['name']}")
 
     fridaInstallLinks = []
@@ -152,7 +217,10 @@ def installFridaServer():
         if not re.match(r"frida-server-.*-android", assetName):
             continue
         fridaInstallLinks.append((assetName, asset["browser_download_url"]))
-        print(f"[-] {index}) {assetName}")
+        recommended = ""
+        if device_abi in assetName:
+            recommended = " (Recommended)"
+        print(f"[-] {index}) {assetName}{recommended}")
         index += 1
 
     if not fridaInstallLinks:
@@ -179,16 +247,7 @@ def installFridaServer():
     print("[*] Changing permissions of server")
     runADBCommand("chmod 755 /data/local/tmp/frida-server", asRoot=True)
 
-    print("[*] Running frida server")
-    runADBCommand("nohup /data/local/tmp/frida-server > /dev/null 2>&1&", asRoot=True)
-
-    print("[*] Checking if frida server is running")
-    runningProcesses = runADBCommand("ps | grep frida-server")
-
-    if "frida-server" in runningProcesses:
-        print("[*] Frida server is running")
-    else:
-        print("[!] Failed to run frida server!")
+    startFridaServer()
 
 
 def installProxyTool():
@@ -282,6 +341,42 @@ def installBurpCert():
     print(out)
 
 
+def connectRemoteAVD():
+    """Set up a reverse SSH tunnel to expose the AVD's ADB port on a remote machine."""
+    print("[*] This will create a reverse SSH tunnel so a remote machine can access the AVD via ADB.")
+    print("[*] The remote machine needs an SSH server running.")
+    print()
+
+    user = input("[?] SSH username on the remote machine: ").strip()
+    if not user:
+        print("[!] Username cannot be empty.")
+        return
+
+    ip = input("[?] IP address of the remote machine: ").strip()
+    if not re.match(r"^[\w.-]+$", ip):
+        print("[!] Invalid IP address.")
+        return
+
+    port = input("[?] SSH port (default: 22): ").strip() or "22"
+    if not port.isdigit():
+        print("[!] Invalid port.")
+        return
+
+    adb_port = input("[?] ADB port to forward (default: 5555): ").strip() or "5555"
+    if not adb_port.isdigit():
+        print("[!] Invalid port.")
+        return
+
+    cmd = f'ssh -R {adb_port}:127.0.0.1:5555 {user}@{ip} -p {port} -N'
+    print(f"[*] Running: {cmd}")
+    print("[*] Keep this running. On the remote machine, run: adb connect 127.0.0.1:" + adb_port)
+    print("[*] Press Ctrl+C to stop the tunnel.")
+    try:
+        runInteractiveCommand(cmd)
+    except KeyboardInterrupt:
+        print("\n[*] Tunnel closed.")
+
+
 def fullSetup():
     """Run all steps in sequence for a complete AVD setup."""
     print("[*] Starting full AVD setup...\n")
@@ -295,11 +390,12 @@ def fullSetup():
 
 MENU_OPTIONS = [
     ("Root AVD", rootDevice),
-    ("Install Frida Server", installFridaServer),
+    ("Install/Manage Frida Server", installFridaServer),
     ("Install Proxy Tool", installProxyTool),
     ("Install MagiskTrustUserCerts Module", installTrustUserCertsModule),
     ("Install Burp Suite Certificate", installBurpCert),
     ("Full Setup (all of the above)", fullSetup),
+    ("Expose AVD to Remote Machine (SSH Tunnel)", connectRemoteAVD),
 ]
 
 
