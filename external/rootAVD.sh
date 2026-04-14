@@ -3,6 +3,7 @@
 #
 # Magisk Boot Image Patcher - original created by topjohnwu and modded by shakalaca's
 # modded by NewBit XDA for Android Studio AVD
+# small modifications by rektile404
 ##########################################################################################
 
 ###################
